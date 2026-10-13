@@ -1,0 +1,20 @@
+[project]
+name = "macvnc"
+version = "0.1.0"
+description = "Control a Mac over Apple Screen Sharing (VNC), including the login window"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["cryptography>=50.0.2"]
+
+[project.scripts]
+macvnc = "macvnc.__main__:main"
+
+[dependency-groups]
+dev = ["pytest>=9.1.1"]
+
+[build-system]
+requires = ["uv_build>=0.12.17,<0.13"]
+build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 120
