@@ -130,8 +130,6 @@ class Client:
         self.sock.sendall(b"\x02\x00" + struct.pack(">Hi", 1, 0))  # SetEncodings: Raw
         self.sock.sendall(b"\x0a\x00\x00\x01")  # SetMode(control)
         self._keys_allowed_at = time.monotonic() + KEY_GUARD_SECONDS
-        self._buttons = 0
-        self._pointer = (0, 0)
 
     def _login(self, username, password):
         """Apple Diffie-Hellman login: the server sends a generator, a key
@@ -191,25 +189,20 @@ class Client:
             self.key_event(sym, False)
             time.sleep(delay)
 
-    def _pointer_event(self):
-        x, y = self._pointer
-        self.sock.sendall(struct.pack(">BBHH", 5, self._buttons, x, y))
+    def pointer_event(self, x, y, buttons=0):
+        """Put the pointer at x, y with the buttons in the RFB mask held:
+        bit 0 left, bit 1 middle, bit 2 right."""
+        self.sock.sendall(struct.pack(">BBHH", 5, buttons, x, y))
 
     def move(self, x, y):
-        self._pointer = (x, y)
-        self._pointer_event()
+        self.pointer_event(x, y)
 
-    def click(self, x=None, y=None, button=1):
-        """Click at x, y (default: the current position). Button 1 is left,
-        2 middle, 3 right."""
-        if x is not None:
-            self.move(x, y)
-        mask = 1 << (button - 1)
-        self._buttons |= mask
-        self._pointer_event()
+    def click(self, x, y, button=1):
+        """Click at x, y. Button 1 is left, 2 middle, 3 right."""
+        self.pointer_event(x, y)
+        self.pointer_event(x, y, 1 << (button - 1))
         time.sleep(0.05)
-        self._buttons &= ~mask
-        self._pointer_event()
+        self.pointer_event(x, y)
 
     def screenshot(self):
         """Request the whole screen and return it as PNG bytes."""
