@@ -11,8 +11,9 @@ ACTIONS = """actions, run in order:
   type:TEXT       type TEXT
   password        type the password
   key:COMBO       press a key or combination: return, tab, backspace, cmd+space
-  click:X,Y       left-click at framebuffer pixel X,Y
-  rightclick:X,Y  right-click at X,Y
+  click[:X,Y]     left-click at framebuffer pixel X,Y, or where the pointer is
+  rightclick[:X,Y]
+                  right-click at X,Y, or where the pointer is
   move:X,Y        move the pointer to X,Y
   pause:SECONDS   wait
   capture:FILE    save a screenshot as PNG
@@ -44,13 +45,14 @@ def main():
     else:
         parser.error("give --password-file or set MACVNC_PASSWORD")
 
-    def point(arg):
-        x, y = arg.split(",")
-        return int(x), int(y)
-
     with connect(args.host, args.user, password, args.port) as mac:
+        # Where the last move or click put the pointer.
+        pointer = (0, 0)
         for action in args.actions:
             name, _, arg = action.partition(":")
+            if name in ("click", "rightclick", "move") and arg:
+                x, y = arg.split(",")
+                pointer = (int(x), int(y))
             if name == "type":
                 mac.type(arg)
             elif name == "password":
@@ -58,11 +60,11 @@ def main():
             elif name == "key":
                 mac.press(arg)
             elif name == "click":
-                mac.click(*point(arg))
+                mac.click(*pointer)
             elif name == "rightclick":
-                mac.click(*point(arg), button=3)
+                mac.click(*pointer, button=3)
             elif name == "move":
-                mac.move(*point(arg))
+                mac.move(*pointer)
             elif name == "pause":
                 time.sleep(float(arg))
             elif name == "capture":

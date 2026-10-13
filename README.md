@@ -31,7 +31,7 @@ the command line. The actions run in order in one session:
 | `type:TEXT` | type text |
 | `password` | type the password |
 | `key:COMBO` | press a key or combination, for example `return`, `tab`, `backspace`, `cmd+space` |
-| `click:X,Y`, `rightclick:X,Y` | click at a framebuffer pixel |
+| `click[:X,Y]`, `rightclick[:X,Y]` | click at a framebuffer pixel, or where the last `move` or click put the pointer |
 | `move:X,Y` | move the pointer |
 | `pause:SECONDS` | wait |
 | `capture:FILE` | save a screenshot as PNG |
