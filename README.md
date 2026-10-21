@@ -41,8 +41,43 @@ coordinates.
 
 A login from the login window stays logged in after macvnc disconnects. A
 screen unlocked from the lock screen locks again when the session that
-unlocked it ends, so do the work that needs the unlocked screen in the same
-session.
+unlocked it ends. Use a persistent session to keep the connection open while
+running separate commands.
+
+### Persistent sessions
+
+Use `--session NAME` to start a background connection and reuse it in later
+commands. This keeps an unlocked screen available while an agent takes
+screenshots and decides what to do next:
+
+```sh
+# Connect, unlock, and leave the connection open.
+macvnc mac.local -u administrator --password-file pw.txt --session work password key:return
+
+# These commands reuse that connection; no credentials are needed.
+macvnc mac.local --session work capture:screen.png
+macvnc mac.local --session work move:400,300 click type:hello
+
+# Close the connection when finished (an unlocked lock screen locks again).
+macvnc mac.local --session work --disconnect
+```
+
+You can also start a session without actions. The session retains its pointer
+position and the password used by the `password` action. Commands sharing a
+session run in order, one at a time. Screenshot paths are relative to the
+calling command's working directory.
+
+Sessions belong to the local OS user and use private Unix sockets in
+`/tmp/macvnc-UID`. Names contain 1–40 letters, digits, underscores, hyphens or
+dots, starting with a letter, digit, underscore or hyphen. A name is tied to
+its original host, port and account; disconnect it before changing targets.
+The background process holds the password in memory so `password` keeps
+working. Credentials are passed through a pipe when it starts.
+
+The connection stays open until `--disconnect`, the background process exits,
+or the Mac or network closes it. macvnc does not automatically reconnect a
+running session after a connection failure; disconnect and start it again
+with credentials. Persistent sessions require Unix (macOS or Linux).
 
 ## Python
 

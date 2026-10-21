@@ -27,7 +27,7 @@ def recv_exact(sock, n):
     return data
 
 
-def fake_mac(listener, received):
+def fake_mac(listener, received, handle=None):
     """Speak the server side of the handshake and record what the client sends."""
     conn, _ = listener.accept()
     conn.sendall(b"RFB 003.889\n")
@@ -53,6 +53,12 @@ def fake_mac(listener, received):
     received["set_pixel_format"] = recv_exact(conn, 20)
     received["set_encodings"] = recv_exact(conn, 8)
     received["set_mode"] = recv_exact(conn, 4)
+    if handle is not None:
+        try:
+            handle(conn)
+        finally:
+            conn.close()
+        return
     received["key"] = recv_exact(conn, 8)
     received["key_at"] = time.monotonic()
     received["update_request"] = recv_exact(conn, 10)
