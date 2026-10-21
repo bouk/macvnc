@@ -74,10 +74,23 @@ its original host, port and account; disconnect it before changing targets.
 The background process holds the password in memory so `password` keeps
 working. Credentials are passed through a pipe when it starts.
 
-The connection stays open until `--disconnect`, the background process exits,
-or the Mac or network closes it. macvnc does not automatically reconnect a
-running session after a connection failure; disconnect and start it again
-with credentials. Persistent sessions require Unix (macOS or Linux).
+Sessions expire after **30 minutes of inactivity**, closing the VNC connection
+and removing the session socket. Each command resets the idle period after it
+finishes; active commands are never interrupted by expiration. Use
+`--idle-timeout SECONDS` to set or update the timeout, or `0` to disable it:
+
+```sh
+macvnc mac.local -u administrator --password-file pw.txt --session work --idle-timeout 600
+macvnc mac.local --session work --idle-timeout 0
+```
+
+Commands that omit `--idle-timeout` keep the session's current setting. After
+expiration, provide credentials again to start a new session.
+
+The connection also closes on `--disconnect`, when the background process
+exits, or when the Mac or network closes it. macvnc does not automatically
+reconnect a running session after a connection failure; disconnect and start
+it again with credentials. Persistent sessions require Unix (macOS or Linux).
 
 ## Python
 

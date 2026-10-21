@@ -180,6 +180,12 @@ def test_message_limit():
     (["mac"], "give at least one action"),
     (["mac", "capture:screen.png"], "give -u/--user"),
     (["mac", "--session", "", "capture:screen.png"], "session name"),
+    (["mac", "--idle-timeout", "10", "click"], "requires --session"),
+    (["mac", "--session", "work", "--disconnect", "--idle-timeout", "10"], "without --disconnect"),
+    (["mac", "--session", "work", "--idle-timeout", "-1"], "nonnegative"),
+    (["mac", "--session", "work", "--idle-timeout", "nan"], "finite"),
+    (["mac", "--session", "work", "--idle-timeout", "inf"], "finite"),
+    (["mac", "--session", "work", "--idle-timeout", "1e999"], "finite"),
 ])
 def test_cli_validation(args, error, monkeypatch, capsys):
     from macvnc.__main__ import main
@@ -220,3 +226,30 @@ def test_one_shot_cli(monkeypatch, tmp_path):
     cli.main()
     assert events == [(4, 2), (4, 2), "closed"]
     assert target.read_bytes() == b"screenshot"
+
+
+def test_idle_expiration_resets_after_active_commands(session):
+    cli, _, closed, name = session
+    check(cli("-u", "admin", "--idle-timeout", "1", password="secret"))
+    assert not closed.wait(0.6)
+    # This command runs past the old deadline and takes longer than the timeout.
+    check(cli("pause:1.1"))
+    assert not closed.wait(0.6)
+    assert closed.wait(2)
+    assert not (_session._directory() / f"{name}.sock").exists()
+    result = cli("capture:expired.png")
+    assert result.returncode == 2
+    assert "give -u/--user" in result.stderr
+
+
+def test_update_idle_timeout_and_disable_expiration(session):
+    cli, _, closed, name = session
+    check(cli("-u", "admin", "--idle-timeout", "1.5", password="secret"))
+    check(cli("--idle-timeout", "0"))
+    assert not closed.wait(1.7)
+    check(cli("capture:no-expiration.png"))
+    # Updating an existing session needs no credentials, and starts counting
+    # after the command's final event delay, which exceeds this timeout.
+    check(cli("--idle-timeout", "0.2"))
+    assert closed.wait(2)
+    assert not (_session._directory() / f"{name}.sock").exists()

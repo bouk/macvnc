@@ -10,9 +10,10 @@ import stat
 import subprocess
 import sys
 import threading
+import time
 
 from . import connect
-from .__main__ import Actions
+from .__main__ import Actions, DEFAULT_IDLE_TIMEOUT
 
 
 class SessionError(ValueError):
@@ -66,6 +67,7 @@ def _start(path, args, password):
         _write(process.stdin, {
             "path": str(path), "host": args.host, "port": args.port,
             "user": args.user, "password": password,
+            "idle_timeout": DEFAULT_IDLE_TIMEOUT if args.idle_timeout is None else args.idle_timeout,
         })
         process.stdin.close()
         response = _read(process.stdout)
@@ -109,6 +111,7 @@ def run(args, get_password):
         _write(stream, {
             "host": args.host, "port": args.port, "user": args.user,
             "actions": actions, "disconnect": args.disconnect,
+            "idle_timeout": args.idle_timeout,
         })
         response = _read(stream)
         if "error" in response:
@@ -127,17 +130,36 @@ def serve(config, ready):
                 actions = Actions(mac, config["password"])
                 _write(ready, {})
                 ready.close()
+                idle_timeout = config.get("idle_timeout", DEFAULT_IDLE_TIMEOUT)
+                last_active = time.monotonic()
                 while True:
-                    conn, _ = listener.accept()
+                    if idle_timeout:
+                        remaining = last_active + idle_timeout - time.monotonic()
+                        if remaining <= 0:
+                            path.unlink(missing_ok=True)
+                            bound = False
+                            return
+                        # Bound the socket wait even for very large finite timeouts.
+                        listener.settimeout(min(remaining, 3600))
+                    else:
+                        listener.settimeout(None)
+                    try:
+                        conn, _ = listener.accept()
+                    except TimeoutError:
+                        continue
                     with conn, conn.makefile("rwb") as stream:
                         conn.settimeout(30)
                         disconnect = False
+                        valid_request = False
                         try:
                             request = _read(stream)
                             if (request["host"], request["port"]) != (config["host"], config["port"]):
                                 raise SessionError("session is connected to a different host or port")
                             if request["user"] not in (None, config["user"]):
                                 raise SessionError("session is connected with a different account")
+                            valid_request = True
+                            if request.get("idle_timeout") is not None:
+                                idle_timeout = request["idle_timeout"]
                             disconnect = request["disconnect"]
                             if disconnect:
                                 mac.close()
@@ -155,6 +177,10 @@ def serve(config, ready):
                             pass
                         if disconnect:
                             return
+                        if valid_request:
+                            # Active commands can exceed the timeout. Start the
+                            # idle period after they finish, even on an action error.
+                            last_active = time.monotonic()
         finally:
             if bound:
                 path.unlink(missing_ok=True)

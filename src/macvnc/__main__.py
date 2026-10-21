@@ -1,11 +1,14 @@
 """Command-line interface: run actions in a new or persistent session."""
 
 import argparse
+import math
 import os
 import sys
 import time
 
 from . import connect
+
+DEFAULT_IDLE_TIMEOUT = 30 * 60
 
 ACTIONS = """actions, run in order:
   type:TEXT       type TEXT
@@ -76,6 +79,13 @@ def _password(args, parser):
     parser.error("give --password-file or set MACVNC_PASSWORD")
 
 
+def _idle_timeout(value):
+    seconds = float(value)
+    if not math.isfinite(seconds) or seconds < 0:
+        raise argparse.ArgumentTypeError("idle timeout must be a finite, nonnegative number of seconds")
+    return seconds
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="macvnc",
@@ -89,10 +99,16 @@ def main():
     parser.add_argument("--password-file", help="file with the account password (default: $MACVNC_PASSWORD)")
     parser.add_argument("-p", "--port", type=int, default=5900)
     parser.add_argument("--session", help="keep and reuse a named background connection")
+    parser.add_argument(
+        "--idle-timeout", type=_idle_timeout, metavar="SECONDS",
+        help="expire --session after inactivity (default: 1800 seconds; 0 disables); updates existing sessions",
+    )
     parser.add_argument("--disconnect", action="store_true", help="close --session instead of running actions")
     args = parser.parse_intermixed_args()
     if args.disconnect and (not args.session or args.actions):
         parser.error("--disconnect requires --session and no actions")
+    if args.idle_timeout is not None and (args.session is None or args.disconnect):
+        parser.error("--idle-timeout requires --session without --disconnect")
     if not args.actions and args.session is None:
         parser.error("give at least one action or --session")
 
